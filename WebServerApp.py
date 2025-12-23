@@ -9,8 +9,8 @@ app = Flask(__name__)
 app.secret_key = secrets.token_hex(16) # For session security
 
 # --- CONFIGURATION (Get these from the Oura Developer Console) ---
-CLIENT_ID = "YOUR_CLIENT_ID"
-CLIENT_SECRET = "YOUR_CLIENT_SECRET"
+CLIENT_ID = "3ff70d92-7b94-4091-990f-9ecc8c8676e3"
+CLIENT_SECRET = "s7O_FUNHmuHRnZpu4VpEuixMD0OnwMgl9kCIBz9Pj10"
 # Must match exactly what you entered in the Oura Dev Portal
 REDIRECT_URI = "https://doughtily-indifferent-kamilah.ngrok-free.dev/callback"
 WEBHOOK_CALLBACK_URL = "https://doughtily-indifferent-kamilah.ngrok-free.dev/webhook"

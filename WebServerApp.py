@@ -24,17 +24,27 @@ WEBHOOK_REG_URL = "https://api.ouraring.com/v2/webhook/subscription"
 
 @app.route('/login')
 def login():
-    """Step 1: Redirect user to Oura's authorization page."""
-    scopes = "personal daily_readiness daily_sleep daily_activity heartrate"
-    auth_params = {
+    # 1. EXACTLY as it appears in Oura Developer Console
+    # Make sure this matches your CURRENT Ngrok URL
+    redirect_uri = "https://your-ngrok-id.ngrok-free.app/callback"
+    
+    # 2. Standard Oura V2 Scopes 
+    # (Removed 'daily_readiness' - v2 uses 'daily' for all summaries)
+    scopes = ["personal", "daily", "heartrate", "workout", "tag", "session"]
+    
+    params = {
         "client_id": CLIENT_ID,
         "response_type": "code",
-        "redirect_uri": REDIRECT_URI,
-        "scope": scopes,
+        "redirect_uri": redirect_uri,
+        "scope": " ".join(scopes), # Space-separated list
         "state": secrets.token_hex(8)
     }
-    # Build the URL
-    target_url = f"{AUTH_URL}?{'&'.join([f'{k}={v}' for k, v in auth_params.items()])}"
+    
+    # Build and URL-encode the parameters
+    url_params = urllib.parse.urlencode(params)
+    target_url = f"{AUTH_URL}?{url_params}"
+    
+    print(f"DEBUG: Redirecting to -> {target_url}")
     return redirect(target_url)
 
 @app.route('/callback')

@@ -27,7 +27,7 @@ WEBHOOK_REG_URL = "https://api.ouraring.com/v2/webhook/subscription"
 def login():
     # 1. EXACTLY as it appears in Oura Developer Console
     # Make sure this matches your CURRENT Ngrok URL
-    redirect_uri = "https://your-ngrok-id.ngrok-free.app/callback"
+    #redirect_uri = "https://your-ngrok-id.ngrok-free.app/callback"
     
     # 2. Standard Oura V2 Scopes 
     # (Removed 'daily_readiness' - v2 uses 'daily' for all summaries)
@@ -36,7 +36,7 @@ def login():
     params = {
         "client_id": CLIENT_ID,
         "response_type": "code",
-        "redirect_uri": redirect_uri,
+        "redirect_uri": REDIRECT_URI,
         "scope": " ".join(scopes), # Space-separated list
         "state": secrets.token_hex(8)
     }
@@ -50,10 +50,7 @@ def login():
 
 @app.route('/callback')
 def callback():
-    """Step 2: Handle redirect from Oura and exchange code for token."""
     code = request.args.get('code')
-    
-    # Exchange authorization code for an access token
     token_response = requests.post(TOKEN_URL, data={
         "grant_type": "authorization_code",
         "code": code,
@@ -65,18 +62,25 @@ def callback():
     token_data = token_response.json()
     access_token = token_data.get('access_token')
 
-    # --- STEP 3: AUTOMATIC WEBHOOK REGISTRATION ---
-    # Now that we have a token, we tell Oura to start sending data to /webhook
+    # --- UPDATED WEBHOOK REGISTRATION ---
     webhook_payload = {
         "callback_url": WEBHOOK_CALLBACK_URL,
-        "data_type": "heart_rate",
+        "data_type": "heartrate",
         "event_type": "create"
+    }
+    
+    # Oura V2 Webhooks require Client ID and Secret in the headers
+    registration_headers = {
+        "Authorization": f"Bearer {access_token}",
+        "x-client-id": CLIENT_ID,
+        "x-client-secret": CLIENT_SECRET,
+        "Content-Type": "application/json"
     }
     
     reg_response = requests.post(
         WEBHOOK_REG_URL, 
         json=webhook_payload, 
-        headers={"Authorization": f"Bearer {access_token}"}
+        headers=registration_headers
     )
     
     return jsonify({
@@ -112,6 +116,18 @@ def webhook_handler():
         data = request.json
         print(f"WEBHOOK RECEIVED: {data}")
         return "OK", 200
+
+@app.route('/list_webhooks')
+def list_webhooks():
+    headers = {
+        "x-client-id": CLIENT_ID,
+        "x-client-secret": CLIENT_SECRET,
+        # You'll need a valid access_token here
+    }
+    # This assumes you saved your access_token somewhere or are using a hardcoded one for testing
+    res = requests.get("https://api.ouraring.com/v2/webhook/subscription", headers=headers)
+    return res.json()
+
 
 if __name__ == '__main__':
     # Running on port 5000 to match Ngrok

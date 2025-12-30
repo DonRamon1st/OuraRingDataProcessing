@@ -21,6 +21,9 @@ AUTH_URL = "https://cloud.ouraring.com/oauth/authorize"
 TOKEN_URL = "https://api.ouraring.com/oauth/token"
 WEBHOOK_REG_URL = "https://api.ouraring.com/v2/webhook/subscription"
 
+#Webhook List URL
+Webhook_List_URL = "https://doughtily-indifferent-kamilah.ngrok-free.dev/list"
+
 # --- 1. THE OAUTH FLOW & CALL BACK ---
 
 @app.route('/')
@@ -62,10 +65,11 @@ def callback():
     global access_token 
     access_token = token_data.get('access_token')
     print("The access token received is:", access_token) 
-    return access_token
+    #return access_token
+    return redirect(Webhook_List_URL)
 
 
-# --- 2. THE WEBHOOK CALL API ---
+# --- 2. THE WEBHOOK CALL API - Create Webhook ---
 @app.route('/create_webhook')
 def create_webhook():
     
@@ -82,7 +86,7 @@ def create_webhook():
         "callback_url": WEBHOOK_CALLBACK_URL,
         "verification_token": access_token,
         "event_type": "create", #Event_Type can be 'create', 'update', or 'delete'
-        "data_type": "sleep" #Data Type can be as described in Oura's documentation https://cloud.ouraring.com/v2/docs#operation/create_webhook_subscription_v2_webhook_subscription_post
+        "data_type": "daily_activity" #Data Type can be as described in Oura's documentation https://cloud.ouraring.com/v2/docs#operation/create_webhook_subscription_v2_webhook_subscription_post
     }
 
     #Build the POST request to register the webhook
@@ -129,6 +133,24 @@ def webhook_handler():
         print(f"WEBHOOK RECEIVED: {data}")
         return "OK", 200
 
+@app.route('/GetWebhook-SleepData')
+def GetWebhook_SleepData():
+    headers = {
+        "x-client-id": CLIENT_ID,
+        "x-client-secret": CLIENT_SECRET,
+        # You'll need a valid access_token here
+    }
+    id = "1034914d-34b1-423c-97fc-ecf181de972b"
+    #Create the GET request to list this Webhook with the id prvided
+    res = requests.get(f"https://api.ouraring.com/v2/webhook/subscription/{id}", headers=headers)
+    
+    return jsonify({
+        "response_status": "Listing Sleep webhook",
+        "webhook_response_status_code": res.status_code,
+        "webhook_registration_responseHeaders": dict(res.headers),
+        "webhook_registration_responseText": res.text,
+        "webhook_registration_responseJSON": res.json()
+    })
 
 @app.route('/list')
 def list_webhooks():
@@ -139,13 +161,13 @@ def list_webhooks():
     }
     # This assumes you saved your access_token somewhere or are using a hardcoded one for testing
     res = requests.get("https://api.ouraring.com/v2/webhook/subscription", headers=headers)
-    #return res.json()
+    
     return jsonify({
-        "response_status": "tbc",
+        "response_status": "Listing all webhooks",
+        "webhook_response_status_code": res.status_code,
         "webhook_registration_responseHeaders": dict(res.headers),
         "webhook_registration_responseText": res.text,
-        "webhook_registration_responseJSON": res.json(),
-        "webhook_response_status_code": res.status_code
+        "webhook_registration_responseJSON": res.json()
     })
 
 

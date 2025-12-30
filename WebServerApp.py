@@ -21,16 +21,10 @@ AUTH_URL = "https://cloud.ouraring.com/oauth/authorize"
 TOKEN_URL = "https://api.ouraring.com/oauth/token"
 WEBHOOK_REG_URL = "https://api.ouraring.com/v2/webhook/subscription"
 
-# --- 1. THE OAUTH FLOW ---
+# --- 1. THE OAUTH FLOW & CALL BACK ---
 
-@app.route('/login')
+@app.route('/')
 def login():
-    # 1. EXACTLY as it appears in Oura Developer Console
-    # Make sure this matches your CURRENT Ngrok URL
-    #redirect_uri = "https://your-ngrok-id.ngrok-free.app/callback"
-    
-    # 2. Standard Oura V2 Scopes 
-    # (Removed 'daily_readiness' - v2 uses 'daily' for all summaries)
     scopes = ["personal", "daily", "heartrate", "workout", "tag", "session"]
     
     params = {
@@ -45,7 +39,10 @@ def login():
     url_params = urllib.parse.urlencode(params)
     target_url = f"{AUTH_URL}?{url_params}"
     
+    #Prints the target URL created and encoded based on the parameters above
     print(f"DEBUG: Redirecting to -> {target_url}")
+    
+    #Login function redirects user to Oura's OAuth authorization page
     return redirect(target_url)
 
 @app.route('/callback')
@@ -60,16 +57,19 @@ def callback():
     })
     
     token_data = token_response.json()
-    access_token = token_data.get('access_token')
-
-    # --- UPDATED WEBHOOK REGISTRATION ---
-    webhook_payload = {
-        "callback_url": WEBHOOK_CALLBACK_URL,
-        "data_type": "heartrate",
-        "event_type": "create"
-    }
     
-    # Oura V2 Webhooks require Client ID and Secret in the headers
+    #Stiore the access token in variable for later use
+    global access_token 
+    access_token = token_data.get('access_token')
+    print("The access token received is:", access_token) 
+    return access_token
+
+
+# --- 2. THE WEBHOOK CALL API ---
+@app.route('/create_webhook')
+def create_webhook():
+    
+    #Webhook header payload - Oura V2 Webhooks require Client ID and Secret in the headers
     registration_headers = {
         "Authorization": f"Bearer {access_token}",
         "x-client-id": CLIENT_ID,
@@ -77,32 +77,45 @@ def callback():
         "Content-Type": "application/json"
     }
     
+    #Webhook registration payload
+    webhook_payload = {
+        "callback_url": WEBHOOK_CALLBACK_URL,
+        "verification_token": access_token,
+        "event_type": "create", #Event_Type can be 'create', 'update', or 'delete'
+        "data_type": "sleep" #Data Type can be as described in Oura's documentation https://cloud.ouraring.com/v2/docs#operation/create_webhook_subscription_v2_webhook_subscription_post
+    }
+
+    #Build the POST request to register the webhook
     reg_response = requests.post(
         WEBHOOK_REG_URL, 
-        json=webhook_payload, 
-        headers=registration_headers
+        headers=registration_headers,
+        json=webhook_payload       
     )
     
+
+    ##Calls jsonify to return the status of the webhook registration and its response
     return jsonify({
-        "oauth_status": "Successful",
-        "webhook_registration": reg_response.json()
+        "response_status": "tbc",
+        "webhook_registration_responseHeaders": dict(reg_response.headers),
+        "webhook_registration_responseText": reg_response.text,
+        "webhook_registration_responseJSON": reg_response.json(),
+        "webhook_response_status_code": reg_response.status_code
     })
-
-# --- 2. THE WEBHOOK LISTENER ---
-
+    
+           
+# --- 3. THE WEBHOOK LISTENER ---
 @app.route('/webhook', methods=['GET', 'POST'])
 def webhook_handler():
-    # HANDSHAKE: Oura verifies this URL when we call the registration script
+    # HANDSHAKE
     if request.method == 'GET':
         challenge = request.args.get('challenge')
-        return make_response(challenge, 200)
+        return jsonify({"challenge": challenge}), 200
 
-    # DATA PAYLOAD: Oura sends data updates here
+    # DATA PAYLOAD
     if request.method == 'POST':
-        # Verify Security Signature
         oura_signature = request.headers.get('x-oura-signature')
         payload_bytes = request.get_data()
-        
+
         expected_sig = hmac.new(
             CLIENT_SECRET.encode('utf-8'),
             payload_bytes,
@@ -112,12 +125,12 @@ def webhook_handler():
         if not hmac.compare_digest(oura_signature, expected_sig):
             return "Invalid signature", 401
 
-        # LOG THE DATA
         data = request.json
         print(f"WEBHOOK RECEIVED: {data}")
         return "OK", 200
 
-@app.route('/list_webhooks')
+
+@app.route('/list')
 def list_webhooks():
     headers = {
         "x-client-id": CLIENT_ID,
@@ -126,7 +139,14 @@ def list_webhooks():
     }
     # This assumes you saved your access_token somewhere or are using a hardcoded one for testing
     res = requests.get("https://api.ouraring.com/v2/webhook/subscription", headers=headers)
-    return res.json()
+    #return res.json()
+    return jsonify({
+        "response_status": "tbc",
+        "webhook_registration_responseHeaders": dict(res.headers),
+        "webhook_registration_responseText": res.text,
+        "webhook_registration_responseJSON": res.json(),
+        "webhook_response_status_code": res.status_code
+    })
 
 
 if __name__ == '__main__':
